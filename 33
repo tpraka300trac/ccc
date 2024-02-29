@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Rollup {
+    struct Transaction {
+        address from;
+        address to;
+        uint256 amount;
+        bytes32[] proof; // Merkle proofs for transaction inclusion
+    }
+
+    mapping(uint256 => Transaction) public transactions;
+    uint256 public currentBatch;
+    mapping(bytes32 => bool) public usedProofs;
+
+    event TransactionSubmitted(address indexed from, address indexed to, uint256 amount, uint256 batch);
+
+    function submitTransaction(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes32[] memory _proof
+    ) external {
+        require(verifyProof(_from, _to, _amount, _proof), "Invalid proof");
+        require(!usedProofs[keccak256(abi.encode(_proof))], "Proof already used");
+
+        transactions[currentBatch] = Transaction(_from, _to, _amount, _proof);
+        emit TransactionSubmitted(_from, _to, _amount, currentBatch);
+
+        currentBatch++;
+        usedProofs[keccak256(abi.encode(_proof))] = true;
+    }
+
+    function verifyProof(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes32[] memory _proof
+    ) internal pure returns (bool) {
+        // Simplified implementation of Merkle proof verification
+        // Requires a more robust implementation in production
+        bytes32 rootHash = calculateRootHash(_from, _to, _amount);
+        bytes32 computedHash = _proof[0];
+
+        for (uint256 i = 1; i < _proof.length; i++) {
+            bytes32 proofElement = _proof[i];
+
+            if (computedHash < proofElement) {
+                computedHash = keccak256(abi.encodePacked(computedHash, proofElement));
+            } else {
+                computedHash = keccak256(abi.encodePacked(proofElement, computedHash));
+            }
+        }
+
+        return computedHash == rootHash;
+    }
+
+    function calculateRootHash(address _from, address _to, uint256 _amount) internal pure returns (bytes32) {
+        // Simplified function to calculate Merkle root hash
+        return keccak256(abi.encode(_from, _to, _amount));
+    }
+}
